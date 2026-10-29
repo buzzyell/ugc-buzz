@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UGCバズ帳</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#f3f4f7; --surface:#fff; --ink:#15171c; --muted:#6a6f7b; --line:#dfe2e9;
+  --accent:#ff2d6b; --accent-ink:#fff; --cyan:#0aa6b8; --cyan-soft:#dcf6f8; --player:#000;
+  --f-body:"M PLUS 1p","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1115; --surface:#181b21; --ink:#eceef2; --muted:#9097a4; --line:#2a2f38;
+  --accent:#ff4d82; --cyan:#3fd0e0; --cyan-soft:#12313a; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px max(16px,3vw);display:grid;gap:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+h1{margin:0;font-size:20px;font-weight:800}
+h1 span{color:var(--accent)}
+.count{color:var(--muted);font-size:12px}
+.spacer{flex:1}
+button,input,select,textarea{font:inherit;color:var(--ink)}
+button{cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--surface);padding:6px 12px}
+.main{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+#urls{flex:1;min-width:200px;height:38px;resize:vertical;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px}
+#q,#sort{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px}
+#q{flex:1;min-width:160px}
+.chip{font-size:12px;padding:3px 10px;border-radius:999px;color:var(--muted)}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip .n{font-family:var(--f-num);font-size:11px;opacity:.7;margin-left:4px}
+.msg{font-size:12px;color:var(--cyan);min-height:1em}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:16px max(16px,3vw) 60px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.player{aspect-ratio:9/16;background:var(--player);position:relative;max-height:620px}
+.player iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.player .ph{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:13px;opacity:.7;text-align:center;padding:20px}
+.body{padding:12px;display:grid;gap:10px}
+.who{font-weight:700;overflow-wrap:anywhere}
+.who small{font-weight:400;color:var(--muted);margin-left:6px}
+.cap{color:var(--muted);font-size:12.5px;overflow-wrap:anywhere;max-height:3.2em;overflow:hidden}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.stat{background:var(--bg);border-radius:8px;padding:5px 7px}
+.stat b{display:block;font-family:var(--f-num);font-size:13px;font-weight:500}
+.stat span{font-size:10px;color:var(--muted)}
+.stat.hi b{color:var(--accent)}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{font-size:12px;padding:2px 9px;border-radius:999px;border:1px dashed var(--line);background:transparent;color:var(--muted)}
+.tag.on{border-style:solid;background:var(--cyan-soft);color:var(--cyan);border-color:var(--cyan);font-weight:700}
+.tagadd{width:80px;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:transparent}
+label{display:grid;gap:3px;font-size:11px;font-weight:700;color:var(--muted)}
+textarea.memo{font-size:13px;font-weight:400;background:var(--bg);border:1px solid transparent;border-radius:8px;padding:7px 9px;min-height:70px;resize:vertical}
+textarea.memo:focus{border-color:var(--line);background:var(--surface);outline:none}
+.foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);gap:6px;flex-wrap:wrap}
+.foot a{color:var(--cyan)}
+.foot button{font-size:12px;padding:3px 10px}
+.yes{background:var(--accent);color:#fff;border-color:var(--accent)}
+.badge{font-size:11px;padding:1px 8px;border-radius:4px;background:var(--cyan-soft);color:var(--cyan);justify-self:start}
+.empty{grid-column:1/-1;text-align:center;color:var(--muted);padding:40px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="row"><h1>UGC<span>バズ</span>帳</h1><span class="count" id="count"></span><span class="spacer"></span>
+    <button id="exp">バックアップを書き出す</button><button id="impBtn">読み込む</button><input type="file" id="imp" accept=".json" hidden></div>
+  <div class="row"><textarea id="urls" placeholder="TikTokのURLを貼り付け（複数行・LINEのコピペのままでOK）"></textarea><button class="main" id="add">追加</button></div>
+  <div class="row"><input id="q" type="search" placeholder="キャプション・メモ・アカウントで検索">
+    <select id="sort"><option value="added">追加が新しい順</option><option value="plays">再生数順</option><option value="save">保存率順</option><option value="share">シェア率順</option><option value="like">いいね率順</option><option value="memo">メモ未記入を先に</option></select></div>
+  <div class="row" id="filters"></div>
+  <div class="msg" id="msg"></div>
+</header>
+<main class="grid" id="grid"></main>
+<script>
+const SEED = [{"adMemo":"","addedAt":1793180000000,"author":"petchaosdaily82","buzzMemo":"","caption":"POVYou Could Listen To This All Day. 🐶😂#DogSniffing #DogSounds #SatisfyingSounds #ASMR #DogTok","comments":388,"duration":86,"likes":107200,"nickname":"Pet Chaos Daily","plays":842300,"postedAt":1792403455,"saves":8007,"shares":14100,"status":"ok","tags":["ペット"],"url":"https://vt.tiktok.com/ZSgq7et4Y/","videoId":"7698313982624451871","id":"ZSgq7et4Y"},{"adMemo":"","addedAt":1793180001000,"author":"himechankawaiine","buzzMemo":"","caption":"アンコール不発 #犬 #犬のいる生活 #犬動画 #秋田犬 #犬のいる暮らし","comments":159,"duration":15,"likes":112000,"nickname":"ヒメちゃんにバレるまで。","plays":868100,"postedAt":1792843275,"saves":6612,"shares":4330,"status":"ok","tags":["ペット"],"url":"https://vt.tiktok.com/ZSgqtVYuH/","videoId":"7700203210006367495","id":"ZSgqtVYuH"},{"adMemo":"","addedAt":1793180002000,"author":"giriseishun","buzzMemo":"","caption":"教育実習生にお願いしてみた🥹🙏🥹 #Bump提供 #jk #jkの素敵な思い出 #jkブランド #位置情報","comments":279,"duration":36,"likes":97300,"nickname":"ぎり青春、、、","plays":20000000,"postedAt":1790242944,"saves":6044,"shares":925,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSgPPB4vQ/","videoId":"7689034875550108936","id":"ZSgPPB4vQ"},{"adMemo":"","addedAt":1793180003000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"ad","tags":[],"url":"https://vt.tiktok.com/ZSgF2csbg/","videoId":"7650396414224403733","id":"ZSgF2csbg"},{"adMemo":"","addedAt":1793180004000,"author":"shiichanmama","buzzMemo":"","caption":"義母を抱えてプール飛び込む旦那しぬwwwwwwww #旅行vlog #旦那と義母 #仲良くて何より #あと自分の笑い方どうにかしろ #おすすめ","comments":98,"duration":10,"likes":27400,"nickname":"しいちゃんまま👧🏻","plays":1000000,"postedAt":1788084744,"saves":1196,"shares":266,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSgFMfaJe/","videoId":"7679765472778145032","id":"ZSgFMfaJe"},{"adMemo":"","addedAt":1793180005000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"ad","tags":[],"url":"https://vt.tiktok.com/ZSgNbwQj1/","videoId":"7671120460888771861","id":"ZSgNbwQj1"},{"adMemo":"","addedAt":1793180006000,"author":"ru._.ru718","buzzMemo":"","caption":"シェパーズパイに挑戦しました☘︎⋆˙ 美味しくできて2人とも感動(◜︎︎𖥦◝) スズキのムニエルとアスパラも美味しくできました♩ #fyp #料理 #カップル #大阪 #05","comments":50,"duration":72,"likes":19700,"nickname":"20歳","plays":446400,"postedAt":1787732450,"saves":1360,"shares":122,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSgNgYDuw/","videoId":"7678252372665290005","id":"ZSgNgYDuw"},{"adMemo":"","addedAt":1793180007000,"author":"resort.life","buzzMemo":"","caption":"夏休み30%OFFキャンペーン実施中！ #大阪旅行 #夏休み #ホテル #大阪ホテル","comments":535,"duration":28,"likes":58000,"nickname":"リゾート好きな旅館女将","plays":3100000,"postedAt":1786612317,"saves":5981,"shares":632,"status":"ok","tags":["企業・店舗"],"url":"https://vt.tiktok.com/ZSgNbocyC/","videoId":"7673441447349128468","id":"ZSgNbocyC"},{"adMemo":"","addedAt":1793180008000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"ad","tags":[],"url":"https://vt.tiktok.com/ZSgNgSv18/","videoId":"7672372845070077204","id":"ZSgNgSv18"},{"adMemo":"","addedAt":1793180009000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"review","tags":[],"url":"https://vt.tiktok.com/ZSgNgXhLE/","videoId":"7682360031370628372","id":"ZSgNgXhLE"},{"adMemo":"","addedAt":1793180010000,"author":"mitsue.0815","buzzMemo":"","caption":"うちの次男くん パパうたわんの？ #おすすめ #次男くん #次男 #パパ #東京喰種","comments":373,"duration":67,"likes":146200,"nickname":"なんかバズる息子の日常","plays":2900000,"postedAt":1790094100,"saves":8787,"shares":1986,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSgNgbR5V/","videoId":"7688395585833143573","id":"ZSgNgbR5V"},{"adMemo":"","addedAt":1793180011000,"author":"oyakodon_yadeee","buzzMemo":"","caption":"ムスメの予定が壊れないようにてるてる坊主を作るオヤジがオモシロすぎたwww#近所のozisan","comments":257,"duration":70,"likes":32000,"nickname":"オyaコドン","plays":668400,"postedAt":1790682361,"saves":2232,"shares":592,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSgNgooqH/","videoId":"7690922146176077074","id":"ZSgNgooqH"},{"adMemo":"","addedAt":1793180012000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"ad","tags":[],"url":"https://vt.tiktok.com/ZSgN798sa/","videoId":"7670208366269959445","id":"ZSgN798sa"},{"adMemo":"","addedAt":1793180013000,"author":"shunsuke966","buzzMemo":"","caption":"#この前日に家族でバーベキューしたらしいです #ハゲ #おすすめ #面白い","comments":361,"duration":54,"likes":62500,"nickname":"ハゲを追いかけて三千里","plays":1700000,"postedAt":1788521683,"saves":5671,"shares":5823,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSgN96SUr/","videoId":"7681642107651575048","id":"ZSgN96SUr"},{"adMemo":"","addedAt":1793180014000,"author":"oyakotvshow","buzzMemo":"","caption":"2年間聞かれ続けた「最近彼女とどうなんだよ？」でした。 この質問は今回で最後🙏🙇‍♂️","comments":1096,"duration":61,"likes":101400,"nickname":"親子バラエティ","plays":2300000,"postedAt":1787375927,"saves":5065,"shares":2224,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSgNChg78/","videoId":"7676721112427793685","id":"ZSgNChg78"},{"adMemo":"","addedAt":1793180015000,"author":"onceforever802","buzzMemo":"","caption":"今日は月見牛すき丼‼️ インスタ始めました！！ フォローしてね(^^) お手軽に作れるのでみんな是非作ってみてねー！！ みんな月見した？","comments":297,"duration":77,"likes":74300,"nickname":"彼女おたく🐨","plays":2300000,"postedAt":1791715107,"saves":15408,"shares":875,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSgNCrUVY/","videoId":"7695357752733961493","id":"ZSgNCrUVY"},{"adMemo":"","addedAt":1793180016000,"author":"superfighter01","buzzMemo":"","caption":"ほんますぐどついてくる。。 #ウクライナ #夫婦の日常 #結婚生活 #モデル妻 #年下嫁","comments":43,"duration":28,"likes":20400,"nickname":"ウクライナ彼女の日常","plays":486600,"postedAt":1789903471,"saves":1158,"shares":336,"status":"ok","tags":["夫婦"],"url":"https://vt.tiktok.com/ZSgNCXAmK/","videoId":"7687576845251792136","id":"ZSgNCXAmK"},{"adMemo":"","addedAt":1793180017000,"author":"ningen.line.gekijo","buzzMemo":"","caption":"嫉妬した経験はありますか？","comments":572,"duration":88,"likes":26800,"nickname":"人間LINE劇場","plays":1600000,"postedAt":1790440344,"saves":3631,"shares":2982,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSgN48xFE/","videoId":"7689882696817888519","id":"ZSgN48xFE"},{"adMemo":"","addedAt":1793180018000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"gone","tags":[],"url":"https://vt.tiktok.com/ZSg8fD2sj/","videoId":null,"id":"ZSg8fD2sj"},{"adMemo":"","addedAt":1793180019000,"author":"kaginowo.japan","buzzMemo":"","caption":"鼻の下の感覚死んでんのよ","comments":105,"duration":16,"likes":44800,"nickname":"カギノヲ","plays":1200000,"postedAt":1790932762,"saves":1612,"shares":505,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8fNNwM/","videoId":"7691997609182924039","id":"ZSg8fNNwM"},{"adMemo":"","addedAt":1793180020000,"author":"hi______cha________","buzzMemo":"","caption":"","comments":294,"duration":104,"likes":26600,"nickname":"ひーちゃん","plays":624200,"postedAt":1787206015,"saves":7094,"shares":519,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8fnCjU/","videoId":"7675991360498846997","id":"ZSg8fnCjU"},{"adMemo":"","addedAt":1793180021000,"author":"unknown.man711","buzzMemo":"","caption":"限界でした#上司#電話","comments":978,"duration":145,"likes":90700,"nickname":"もんじろう","plays":3400000,"postedAt":1789293814,"saves":10343,"shares":5279,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8fqFP5/","videoId":"7684958390409383189","id":"ZSg8fqFP5"},{"adMemo":"","addedAt":1793180022000,"author":"yukun0418","buzzMemo":"","caption":"#佃煮ママ #娘 #ママ #おすすめ","comments":612,"duration":58,"likes":147100,"nickname":"ゆーくん","plays":3500000,"postedAt":1790156631,"saves":14660,"shares":2484,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSg8PBXkY/","videoId":"7688664151912189204","id":"ZSg8PBXkY"},{"adMemo":"","addedAt":1793180023000,"author":"shiichanmama","buzzMemo":"","caption":"4年前くらいにバズったボウリング動画、そこから本当に結婚した私たちです。笑 記憶ある人いたら凄い😂 #過去動画 #懐か","comments":1344,"duration":15,"likes":190100,"nickname":"しいちゃんまま👧🏻","plays":5000000,"postedAt":1786849014,"saves":10010,"shares":6222,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8P6Kwr/","videoId":"7674458045799222535","id":"ZSg8P6Kwr"},{"adMemo":"","addedAt":1793180024000,"author":"hayato080716","buzzMemo":"","caption":"もかちゃんは怒ると物音が大きくなります🤦‍♂️#fyp #カップル #カップルの日常 #couple","comments":508,"duration":37,"likes":147400,"nickname":"はやとともかちゃん。","plays":3500000,"postedAt":1788184232,"saves":4277,"shares":910,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8PYrkk/","videoId":"7680192773898784021","id":"ZSg8PYrkk"},{"adMemo":"","addedAt":1793180025000,"author":"super8p_","buzzMemo":"","caption":"３歳息子によるパパへのもしもしが泣けた😭💧#家族 #子供のいる暮らし #日常 #思い出 #動画","comments":71,"duration":17,"likes":46100,"nickname":"スーパーハッピー","plays":646200,"postedAt":1784901991,"saves":3035,"shares":1215,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSg8P7gyv/","videoId":"7666095660122344724","id":"ZSg8P7gyv"},{"adMemo":"","addedAt":1793180026000,"author":"ummm.kosuke","buzzMemo":"","caption":"僕)誕生日プレゼント何がいい？ 姫)日傘と、ティアラと、好きなところ100個！ 好きなところ100のタイトルを見た瞬間に","comments":68,"duration":29,"likes":21500,"nickname":"君曜日","plays":404200,"postedAt":1788619820,"saves":1156,"shares":229,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8PTboY/","videoId":"7682063606745271572","id":"ZSg8PTboY"},{"adMemo":"","addedAt":1793180027000,"author":"mr.cp412","buzzMemo":"","caption":"帰りにゆきと連絡つかないと思ったら…@ゆき","comments":453,"duration":62,"likes":70000,"nickname":"しょうきとゆき","plays":1500000,"postedAt":1791374382,"saves":3489,"shares":687,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8PGTEr/","videoId":"7693894348840209671","id":"ZSg8PGTEr"},{"adMemo":"","addedAt":1793180028000,"author":"hiroyuki.miyake","buzzMemo":"","caption":"離れるべき人3タイプ #人間関係 #繋がり","comments":592,"duration":107,"likes":38500,"nickname":"脳、心、体の育成専門家 ／ 三宅裕之","plays":2100000,"postedAt":1789023000,"saves":13298,"shares":1682,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8BT6JF/","videoId":"7682306519358033159","id":"ZSg8BT6JF"},{"adMemo":"","addedAt":1793180029000,"author":"tatumields123","buzzMemo":"","caption":"【狂った父親】凄絶な戦地の記憶　家族に向いた狂気　復員兵のPTSD　『精神疾患』発症　幻聴や幻覚に悩まされた復員兵　終戦","comments":106,"duration":30,"likes":17600,"nickname":"Tatumields123","plays":929200,"postedAt":1788261003,"saves":1419,"shares":94,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8BWasR/","videoId":"7680522309064576273","id":"ZSg8BWasR"},{"adMemo":"","addedAt":1793180030000,"author":"sukininatyadame","buzzMemo":"","caption":"【なかなか通じないT（論理型）とF（感情型）ってこんな感じ】 「ごめん」って言われても、なんかしっくりこない時ない？謝っ","comments":2101,"duration":179,"likes":39700,"nickname":"好きになっちゃだめだよ？","plays":2100000,"postedAt":1787147261,"saves":5099,"shares":3364,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8SACNv/","videoId":"7675739018885188884","id":"ZSg8SACNv"},{"adMemo":"","addedAt":1793180031000,"author":"pyonpyon_poyotaro","buzzMemo":"","caption":"儚い女 @あぞ #あぞ #儚くない #superbeaver","comments":2447,"duration":25,"likes":467500,"nickname":"びっくりはまぐり","plays":5400000,"postedAt":1791795891,"saves":52567,"shares":12100,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8SFNeE/","videoId":"7695704705531530514","id":"ZSg8SFNeE"},{"adMemo":"","addedAt":1793180032000,"author":"nonal.0128","buzzMemo":"","caption":"ISFJ（彼女）とINTJ（彼氏）のガチ過ぎる喧嘩を隠し撮りしました。#カップル #喧嘩","comments":1550,"duration":55,"likes":122800,"nickname":"のんあるcp","plays":5000000,"postedAt":1786618501,"saves":11489,"shares":1557,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8SAcCs/","videoId":"7673468009024965895","id":"ZSg8SAcCs"},{"adMemo":"","addedAt":1793180033000,"author":"kaginowo.japan","buzzMemo":"","caption":"ママが買ってきた派手な傘が嫌で1日目でぶっ壊して帰ってきた😤本人は台風で風が強すぎて壊れた！と言い切るけど台風なんか来","comments":3958,"duration":60,"likes":467100,"nickname":"カギノヲ","plays":9100000,"postedAt":1787904760,"saves":39691,"shares":21200,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSg8SgUUV/","videoId":"7678992427755031826","id":"ZSg8SgUUV"},{"adMemo":"","addedAt":1793180034000,"author":"sasayakanalove","buzzMemo":"","caption":"","comments":94,"duration":60,"likes":20200,"nickname":"sasayakanalove","plays":283900,"postedAt":1791030221,"saves":1709,"shares":532,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8STpDq/","videoId":"7692416200659176725","id":"ZSg8STpDq"},{"adMemo":"","addedAt":1793180035000,"author":"naviclover1222","buzzMemo":"","caption":"その時はよろしくね🥰 #ともりな #カップル #couple #彼女 #花火","comments":2172,"duration":45,"likes":160900,"nickname":"ともりな🦋🍀","plays":4300000,"postedAt":1786702845,"saves":9577,"shares":5236,"status":"ok","tags":["カップル"],"url":"https://vt.tiktok.com/ZSg8Sx65f/","videoId":"7673830260646923541","id":"ZSg8Sx65f"},{"adMemo":"","addedAt":1793180036000,"author":"papat0musume","buzzMemo":"","caption":"娘とお医者さんごっこ第四弾👨‍⚕️✨ #お医者さんごっこ#太り過ぎ#子育て","comments":181,"duration":22,"likes":58800,"nickname":"32歳社長ぱぱ","plays":2100000,"postedAt":1784656472,"saves":2795,"shares":899,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSg8ARrFx/","videoId":"7665041077002341640","id":"ZSg8ARrFx"},{"adMemo":"","addedAt":1793180037000,"author":"theyuhifebvruarly","buzzMemo":"","caption":"#ドゲイ #自己啓発","comments":607,"duration":20,"likes":174500,"nickname":"ゆうひ","plays":1600000,"postedAt":1786073964,"saves":13549,"shares":4991,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8APtD4/","videoId":"7671129217584712981","id":"ZSg8APtD4"},{"adMemo":"","addedAt":1793180038000,"author":"anzu_530","buzzMemo":"","caption":"【好きなタイプは？】#質問","comments":90,"duration":10,"likes":40200,"nickname":"あんず🥝🐥","plays":599700,"postedAt":1789046927,"saves":1643,"shares":237,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8AnTwW/","videoId":"7683898017669319957","id":"ZSg8AnTwW"},{"adMemo":"","addedAt":1793180039000,"author":"coopsgst_602","buzzMemo":"","caption":"#コーポ杉下 #切り抜き #今の聞いたら分かると思うけど #デァ #アベック","comments":100,"duration":59,"likes":18100,"nickname":"602号","plays":500600,"postedAt":1788001195,"saves":1028,"shares":328,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8ACJue/","videoId":"7679406633008499989","id":"ZSg8ACJue"},{"adMemo":"","addedAt":1793180040000,"author":null,"buzzMemo":"","caption":"","nickname":null,"status":"gone","tags":[],"url":"https://vt.tiktok.com/ZSg8DGvta/","videoId":"7693890782717152534","id":"ZSg8DGvta"},{"adMemo":"","addedAt":1793180041000,"author":"qoll____iu10","buzzMemo":"","caption":"#おばあちゃん #地元 #帽子似合ってる","comments":837,"duration":16,"likes":123500,"nickname":"あおい","plays":1200000,"postedAt":1788377337,"saves":12650,"shares":1290,"status":"ok","tags":["家族・親子"],"url":"https://vt.tiktok.com/ZSg8DuSqG/","videoId":"7681022116522691860","id":"ZSg8DuSqG"},{"adMemo":"","addedAt":1793180042000,"author":"pomu_aisarejoshi","buzzMemo":"","caption":"動画でお伝えした「男が別れを決める前に確信しているあること」について解説していきます。 なぜその瞬間が生まれるのか、そし","comments":null,"duration":80,"likes":120500,"nickname":"pomu_aisarejoshi","plays":4400000,"postedAt":1788498000,"saves":22543,"shares":12000,"status":"ok","tags":[],"url":"https://vt.tiktok.com/ZSg8yoaTt/","videoId":"7681455595152542997","id":"ZSg8yoaTt"},{"adMemo":"","addedAt":1793180043000,"author":"japan1525125","buzzMemo":"","caption":"日本社会の現実 #草莽崛起 #日本社会 #こころ党 #政治 #教育","comments":6480,"duration":44,"likes":215000,"nickname":"井上拓実/世界一の狂氣","plays":4000000,"postedAt":1789728919,"saves":35478,"shares":7450,"status":"ok","tags":["1人"],"url":"https://vt.tiktok.com/ZSg8fB4wa/","videoId":"7686827158756429077","id":"ZSg8fB4wa"}];
+const KEY="ugc-buzz-library.v1";
+const PRESET=["カップル","1人","友達","家族・親子","夫婦","ペット","企業・店舗"];
+let rows, filter=new Set(), delPending=null;
+try{rows=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!Array.isArray(rows)) rows=SEED;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>{if(!n)return"—";n=+n;if(n>=1e4)return(n/1e4).toFixed(n>=1e6?0:1)+"万";return n.toLocaleString()};
+const pct=(a,b)=>(a==null||!b)?null:a/b*100, fp=v=>v==null?"—":v.toFixed(v<1?2:1)+"%";
+const rt=r=>({like:pct(r.likes,r.plays),save:pct(r.saves,r.plays),share:pct(r.shares,r.plays)});
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(rows))}catch(e){say("このブラウザに保存できませんでした。バックアップを書き出してください。")}}
+function say(t){$("#msg").textContent=t;clearTimeout(say.t);say.t=setTimeout(()=>$("#msg").textContent="",5000)}
+function allTags(){const m=new Map(PRESET.map(t=>[t,0]));rows.forEach(r=>(r.tags||[]).forEach(t=>m.set(t,(m.get(t)||0)+1)));return m}
+function visible(){
+  const q=$("#q").value.trim().toLowerCase();
+  let v=rows.filter(r=>[...filter].every(t=>(r.tags||[]).includes(t)));
+  if(q)v=v.filter(r=>[r.author,r.nickname,r.caption,r.buzzMemo,r.adMemo,(r.tags||[]).join(" ")].join(" ").toLowerCase().includes(q));
+  const s=$("#sort").value,k={plays:r=>+r.plays||0,save:r=>rt(r).save||0,share:r=>rt(r).share||0,like:r=>rt(r).like||0};
+  if(k[s])v.sort((a,b)=>k[s](b)-k[s](a));
+  else if(s==="memo")v.sort((a,b)=>(!!(a.buzzMemo||a.adMemo))-(!!(b.buzzMemo||b.adMemo))||(b.addedAt||0)-(a.addedAt||0));
+  else v.sort((a,b)=>(b.addedAt||0)-(a.addedAt||0));
+  return v;
+}
+function card(r){
+  const x=rt(r),tags=r.tags||[],extra=tags.filter(t=>!PRESET.includes(t));
+  const st={ad:"広告投稿（埋め込み不可の場合あり）",review:"審査中",gone:"削除・非公開の可能性"}[r.status];
+  const del=delPending===r.id?`<span>削除しますか？</span><span><button class="yes" data-delok>削除する</button> <button data-delno>やめる</button></span>`:`<a href="${esc(r.url)}" target="_blank" rel="noopener">TikTokで開く</a><button data-del>削除</button>`;
+  return `<article class="card" data-id="${esc(r.id)}">
+  <div class="player" data-vid="${esc(r.videoId||"")}">${r.videoId?`<div class="ph">読み込み中…</div>`:`<div class="ph">動画IDが取れていません。<br>「TikTokで開く」から見てください。</div>`}</div>
+  <div class="body">
+    <div class="who">${r.author?"@"+esc(r.author):"（アカウント不明）"}<small>${esc(r.nickname||"")}</small></div>
+    ${r.caption?`<div class="cap">${esc(r.caption)}</div>`:""}
+    ${st?`<span class="badge">${st}</span>`:""}
+    ${r.plays?`<div class="stats"><div class="stat"><b>${fmt(r.plays)}</b><span>再生</span></div><div class="stat"><b>${fp(x.like)}</b><span>いいね率</span></div><div class="stat ${x.save>=1?"hi":""}"><b>${fp(x.save)}</b><span>保存率</span></div><div class="stat ${x.share>=0.5?"hi":""}"><b>${fp(x.share)}</b><span>シェア率</span></div></div>`:""}
+    <div class="tags">${PRESET.map(t=>`<button class="tag ${tags.includes(t)?"on":""}" data-tag="${esc(t)}">${esc(t)}</button>`).join("")}${extra.map(t=>`<button class="tag on" data-tag="${esc(t)}">${esc(t)} ×</button>`).join("")}<input class="tagadd" placeholder="＋タグ"></div>
+    <label>UGCバズの要因<textarea class="memo" data-f="buzzMemo" placeholder="冒頭のフック、関係性、オチ、コメント欄の反応など">${esc(r.buzzMemo||"")}</textarea></label>
+    <label>広告に使うなら<textarea class="memo" data-f="adMemo" placeholder="合う商材、差し込み方、キャスト条件、尺など">${esc(r.adMemo||"")}</textarea></label>
+    <div class="foot">${del}</div>
+  </div></article>`;
+}
+let io;
+function render(){
+  const m=allTags();
+  $("#filters").innerHTML=[...m].map(([t,n])=>`<button class="chip ${filter.has(t)?"on":""}" data-f="${esc(t)}">${esc(t)}<span class="n">${n}</span></button>`).join("")+(filter.size?`<button class="chip" data-clear>解除</button>`:"");
+  const v=visible();
+  $("#count").textContent=`${rows.length}本`+(v.length!==rows.length?` ／ 表示 ${v.length}本`:"");
+  $("#grid").innerHTML=v.length?v.map(card).join(""):`<div class="empty">${rows.length?"条件に合う動画がありません。":"上の欄にTikTokのURLを貼って「追加」してください。"}</div>`;
+  io&&io.disconnect();
+  io=new IntersectionObserver(es=>es.forEach(e=>{
+    const p=e.target,id=p.dataset.vid;if(!id)return;
+    if(e.isIntersecting){if(!p.querySelector("iframe"))p.innerHTML=`<iframe src="https://www.tiktok.com/player/v1/${id}?description=0&music_info=0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen></iframe>`}
+    else if(p.querySelector("iframe")&&!p.contains(document.activeElement))p.innerHTML=`<div class="ph">読み込み中…</div>`;
+  }),{rootMargin:"300px 0px"});
+  document.querySelectorAll(".player[data-vid]").forEach(p=>io.observe(p));
+}
+const find=el=>rows.find(r=>r.id===el.closest(".card").dataset.id);
+$("#grid").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;const r=find(b);
+  if(b.dataset.tag){const s=new Set(r.tags||[]);s.has(b.dataset.tag)?s.delete(b.dataset.tag):s.add(b.dataset.tag);r.tags=[...s];persist();render()}
+  else if(b.hasAttribute("data-del")){delPending=r.id;render()}
+  else if(b.hasAttribute("data-delno")){delPending=null;render()}
+  else if(b.hasAttribute("data-delok")){rows=rows.filter(x=>x!==r);delPending=null;persist();render();say("削除しました")}
+});
+$("#grid").addEventListener("input",e=>{const t=e.target;if(!t.dataset.f)return;find(t)[t.dataset.f]=t.value;clearTimeout(t._t);t._t=setTimeout(persist,400)});
+$("#grid").addEventListener("keydown",e=>{const t=e.target;if(!t.classList.contains("tagadd")||e.key!=="Enter"||e.isComposing)return;const v=t.value.trim();if(!v)return;const r=find(t);r.tags=[...new Set([...(r.tags||[]),v])];persist();render()});
+$("#filters").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.hasAttribute("data-clear"))filter.clear();else filter.has(b.dataset.f)?filter.delete(b.dataset.f):filter.add(b.dataset.f);render()});
+$("#q").addEventListener("input",render);$("#sort").addEventListener("change",render);
+$("#add").addEventListener("click",async()=>{
+  const found=[...new Set($("#urls").value.match(/https?:\/\/[^\s<>"']*tiktok\.com\/[^\s<>"']+/g)||[])];
+  if(!found.length){say("TikTokのURLが見つかりませんでした。");return}
+  $("#add").disabled=true;let n=0,dup=0,miss=0;
+  for(const u of found){
+    let vid=(u.match(/\/video\/(\d+)/)||[])[1]||null,author=(u.match(/@([\w.\-]+)/)||[])[1]||null,caption="";
+    if(!vid){try{const j=await(await fetch("https://www.tiktok.com/oembed?url="+encodeURIComponent(u))).json();vid=j.embed_product_id||null;author=j.author_unique_id||author;caption=j.title||""}catch(e){}}
+    if(!vid)miss++;
+    const id=vid?"v"+vid:u;
+    if(rows.some(r=>r.url===u||(vid&&r.videoId===vid))){dup++;continue}
+    rows.push({id,url:u,videoId:vid,author,caption,tags:[],buzzMemo:"",adMemo:"",status:"ok",addedAt:Date.now()+n});n++;
+  }
+  persist();$("#urls").value="";$("#add").disabled=false;$("#sort").value="added";render();
+  say(`${n}本追加しました`+(dup?`（重複${dup}本はスキップ）`:"")+(miss?`。${miss}本は動画IDが取れず、再生はTikTokで開く形になります`:""));
+});
+$("#exp").addEventListener("click",()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(rows,null,1)],{type:"application/json"}));a.download="ugc-buzz-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();say("バックアップを書き出しました")});
+$("#impBtn").addEventListener("click",()=>$("#imp").click());
+$("#imp").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d))throw 0;rows=d;persist();render();say(`${d.length}本を読み込みました`)}catch(x){say("読み込めませんでした。書き出したバックアップファイルを選んでください。")}e.target.value=""});
+render();
+</script>
+</body>
+</html>
