@@ -133,6 +133,21 @@ details.box[open]>summary::after{transform:rotate(180deg)}
 .lgi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:12.5px;display:grid;gap:2px;cursor:pointer;text-align:left}
 .lgi .t{color:var(--muted);font-size:11px}
 .lgi .c{color:var(--muted);overflow-wrap:anywhere}
+.me{cursor:pointer;border:0;background:none;padding:3px 4px;color:var(--fg,inherit)}
+.me:hover{text-decoration:underline}
+.nbadge{display:inline-block;min-width:16px;padding:0 5px;margin-left:4px;border-radius:999px;background:var(--accent);color:#fff;font-size:10.5px;font-weight:700;line-height:16px;text-align:center}
+.nbadge[hidden]{display:none}
+.mbsec{display:grid;gap:8px;padding:10px 0;border-top:1px solid var(--line)}
+.mbsec h3{margin:0;font-size:13px}
+.mbrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.mbrow input{flex:1;min-width:120px;font-size:13px;padding:7px 9px}
+.mbi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;gap:6px;font-size:12.5px}
+.mbi.pend{border-color:var(--accent)}
+.mbi .em{color:var(--muted);font-size:11.5px;overflow-wrap:anywhere}
+.mbi .mbrow input{min-width:90px;padding:5px 8px}
+.mbi button,.mbsec button{font-size:12px;padding:5px 11px}
+.danger{color:var(--accent)}
+.mbmsg{font-size:12px;color:var(--muted);min-height:1em}
 @media (max-width:700px){
   .top{position:static;padding:10px 12px;gap:6px}
   h1{font-size:18px}
@@ -165,7 +180,7 @@ details.box[open]>summary::after{transform:rotate(180deg)}
 </head>
 <body>
 <header class="top">
-  <div class="row"><h1>UGC<span>バズ</span>帳</h1><span class="count" id="count"></span><span class="spacer"></span><span class="sync" id="sync"><i></i><span>接続中…</span></span><span class="me" id="me"></span><button class="chip" id="logsBtn">履歴</button><button class="chip" id="logout">ログアウト</button></div>
+  <div class="row"><h1>UGC<span>バズ</span>帳</h1><span class="count" id="count"></span><span class="spacer"></span><span class="sync" id="sync"><i></i><span>接続中…</span></span><button class="me" id="me" title="表示名を変える"></button><button class="chip" id="mbBtn" hidden>メンバー<span class="nbadge" id="mbBadge" hidden></span></button><button class="chip" id="logsBtn">履歴</button><button class="chip" id="logout">ログアウト</button></div>
   <div class="row"><textarea id="urls" placeholder="TikTokのURLを貼り付け（複数行・LINEのコピペのままでOK）"></textarea><button class="main" id="add">追加</button></div>
   <div class="row"><input id="q" type="search" placeholder="キャプション・メモ・案件名・コメント・アカウントで検索">
     <select id="sort"><option value="added">追加が新しい順</option><option value="plays">再生数順</option><option value="save">保存率順</option><option value="share">シェア率順</option><option value="like">いいね率順</option><option value="memo">メモ未記入を先に</option></select></div>
@@ -185,6 +200,13 @@ details.box[open]>summary::after{transform:rotate(180deg)}
 </div>
 <datalist id="projects"></datalist>
 <div class="gate" id="gate"><div class="gatebox"><h2>UGC<span>バズ</span>帳</h2><p>社内メンバー専用です。承認されたGoogleアカウントでログインしてください。</p><div id="gbtn"></div><div class="gerr" id="gerr"></div></div></div>
+<div class="lg" id="mb" hidden><div class="lgbox"><div class="lgh"><h2 id="mbTitle">メンバー</h2><button class="close" id="mbclose" aria-label="閉じる">×</button></div>
+<div class="mbsec" style="border-top:0"><h3>あなたの表示名</h3><div class="mbrow"><input id="myName" maxlength="30" aria-label="表示名"><button class="main" id="myNameSave">保存</button></div><div class="mbmsg" id="myNameMsg"></div></div>
+<div id="mbAdmin" hidden>
+<div class="mbsec"><h3>承認待ち</h3><div class="cap">URLを開いてGoogleでログインした人がここに並びます。</div><div id="mbPend" style="display:grid;gap:8px"></div></div>
+<div class="mbsec"><h3>メールアドレスで追加</h3><div class="mbrow"><input id="mbEmail" type="email" placeholder="name@example.com" aria-label="メールアドレス"><input id="mbName" maxlength="30" placeholder="名前（空欄ならGoogleの名前）" aria-label="名前"><button class="main" id="mbAdd">追加</button></div><div class="mbmsg" id="mbMsg"></div></div>
+<div class="mbsec"><h3>メンバー一覧</h3><div id="mbList" style="display:grid;gap:8px"></div></div>
+</div></div></div>
 <div class="lg" id="lg" hidden><div class="lgbox"><div class="lgh"><h2>操作の履歴</h2><button class="close" id="lgclose" aria-label="閉じる">×</button></div><select id="lgSel" aria-label="人で絞り込む"></select><div id="lglist" style="display:grid;gap:8px"></div></div></div>
 
 <script>
@@ -468,7 +490,7 @@ async function onCredential(resp){
   try{
     const res=await fetch(SYNC_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({op:"login",idToken:resp.credential})});
     const j=await res.json();
-    if(!j.ok){$("#gerr").textContent=j.error==="not_member"?`${j.email} はまだ承認されていません。\n杉山さんにこのメールアドレスの承認を依頼してください。`:"ログインできませんでした。もう一度お試しください。";return}
+    if(!j.ok){$("#gerr").textContent=(j.error==="pending"||j.error==="not_member")?`${j.email} で参加申請を送りました。\n管理者が承認したら、もう一度ログインしてください。`:"ログインできませんでした。もう一度お試しください。";return}
     session=j.session;me=j.user;try{localStorage.setItem(SESSION_KEY,JSON.stringify({session,user:me}))}catch(e){}
     start();
   }catch(e){$("#gerr").textContent="サーバーに接続できませんでした。"}
@@ -476,11 +498,14 @@ async function onCredential(resp){
 function logoutLocal(msg){
   session=null;me=null;rows=[];clearInterval(timer);
   try{localStorage.removeItem(SESSION_KEY);localStorage.removeItem(KEY)}catch(e){}
-  closeWs();$("#lg").hidden=true;order=[];$("#grid").innerHTML="";showGate(msg);
+  closeWs();$("#lg").hidden=true;$("#mb").hidden=true;$("#mbBtn").hidden=true;clearInterval(mbTimer);order=[];$("#grid").innerHTML="";showGate(msg);
 }
 $("#logout").addEventListener("click",async()=>{try{await api({op:"logout"})}catch(e){}logoutLocal("ログアウトしました。")});
 function start(){
   $("#gate").hidden=true;$("#me").textContent=me?me.name:"";
+  $("#mbBtn").hidden=!(me&&me.role==="admin");clearInterval(mbTimer);
+  if(me&&me.role==="admin"){loadMembers();mbTimer=setInterval(()=>{if(!document.hidden)loadMembers()},60000)}
+  api({op:"me"}).then(j=>{if(j.user){me=j.user;$("#me").textContent=me.name;$("#mbBtn").hidden=me.role!=="admin";try{localStorage.setItem(SESSION_KEY,JSON.stringify({session,user:me}))}catch(e){}}}).catch(()=>{});
   rows.forEach(normalize);renderGrid();
   setSync("busy","共有シートに接続中…");pull(true);
   clearInterval(timer);timer=setInterval(()=>{if(!document.hidden)pull(false)},10000);
@@ -500,6 +525,48 @@ $("#logsBtn").addEventListener("click",async()=>{$("#lg").hidden=false;$("#lglis
 $("#lgSel").addEventListener("change",renderLogs);
 $("#lgclose").addEventListener("click",()=>$("#lg").hidden=true);
 $("#lg").addEventListener("click",e=>{if(e.target.id==="lg")$("#lg").hidden=true;const b=e.target.closest(".lgi");if(b&&b.dataset.id&&byId(b.dataset.id)){$("#lg").hidden=true;openWs(b.dataset.id)}});
+
+// ===== メンバー =====
+let members=[],mbTimer=null;
+const ROLE={admin:"管理者",member:"メンバー",pending:"承認待ち"};
+function renderMembers(){
+  const pend=members.filter(m=>m.role==="pending"),act=members.filter(m=>m.role!=="pending");
+  $("#mbBadge").hidden=!pend.length;$("#mbBadge").textContent=pend.length;
+  const item=m=>`<div class="mbi ${m.role==="pending"?"pend":""}" data-email="${esc(m.email)}"><div class="em">${esc(m.email)}${m.at?" ・ "+dt(m.at):""}</div><div class="mbrow"><input class="mbN" maxlength="30" value="${esc(m.name)}" placeholder="名前" aria-label="名前">${m.role==="pending"
+    ?`<button class="main" data-act="approve">承認</button><button class="danger" data-act="remove">却下</button>`
+    :`<select class="mbR" aria-label="権限"><option value="member" ${m.role==="member"?"selected":""}>メンバー</option><option value="admin" ${m.role==="admin"?"selected":""}>管理者</option></select><button data-act="save">保存</button>${m.email===me.email?"":`<button class="danger" data-act="remove">外す</button>`}`}</div></div>`;
+  $("#mbPend").innerHTML=pend.length?pend.map(item).join(""):`<div class="cap">いまはいません。</div>`;
+  $("#mbList").innerHTML=act.map(item).join("");
+}
+async function loadMembers(){try{members=(await api({op:"members"})).members;renderMembers()}catch(e){}}
+const MBERR={bad_email:"メールアドレスの形が正しくありません。",last_admin:"管理者が1人もいなくなるため変更できません。",self:"自分は外せません。",forbidden:"管理者だけが操作できます。",not_found:"見つかりませんでした。"};
+async function mbCall(body,msgEl,ok){
+  msgEl.textContent="保存中…";
+  try{members=(await api(body)).members;renderMembers();msgEl.textContent=ok||"保存しました。"}catch(e){msgEl.textContent=MBERR[e.message]||"保存できませんでした。"}
+}
+$("#me").addEventListener("click",()=>{$("#mb").hidden=false;$("#myName").value=me?me.name:"";$("#myNameMsg").textContent="";$("#mbAdmin").hidden=me.role!=="admin";$("#mbTitle").textContent=me.role==="admin"?"メンバー":"表示名";if(me.role==="admin")loadMembers()});
+$("#mbBtn").addEventListener("click",()=>$("#me").click());
+$("#mbclose").addEventListener("click",()=>$("#mb").hidden=true);
+$("#mb").addEventListener("click",async e=>{
+  if(e.target.id==="mb"){$("#mb").hidden=true;return}
+  const b=e.target.closest("button[data-act]");if(!b)return;
+  const box=b.closest(".mbi"),email=box.dataset.email,name=box.querySelector(".mbN").value.trim(),m=members.find(x=>x.email===email);
+  const act=b.dataset.act;
+  if(act==="remove"&&!b.dataset.sure){b.dataset.sure=1;b.textContent="本当に？";setTimeout(()=>{if(b.isConnected){delete b.dataset.sure;b.textContent=m.role==="pending"?"却下":"外す"}},3000);return}
+  const msg=$("#mbMsg");
+  if(act==="approve")await mbCall({op:"membersUpdate",email,name,role:"member"},msg,`${name||email} を承認しました。`);
+  else if(act==="save")await mbCall({op:"membersUpdate",email,name,role:box.querySelector(".mbR").value},msg);
+  else if(act==="remove")await mbCall({op:"membersRemove",email},msg,m.role==="pending"?"申請を却下しました。":"外しました。");
+});
+$("#mbAdd").addEventListener("click",async()=>{
+  const email=$("#mbEmail").value.trim(),name=$("#mbName").value.trim();if(!email)return;
+  await mbCall({op:"membersAdd",email,name},$("#mbMsg"),`${email} を追加しました。`);
+  if(/追加しました/.test($("#mbMsg").textContent)){$("#mbEmail").value="";$("#mbName").value=""}
+});
+$("#myNameSave").addEventListener("click",async()=>{
+  const name=$("#myName").value.trim();if(!name)return;$("#myNameMsg").textContent="保存中…";
+  try{const j=await api({op:"rename",name});me=j.user;$("#me").textContent=me.name;try{localStorage.setItem(SESSION_KEY,JSON.stringify({session,user:me}))}catch(e){}$("#myNameMsg").textContent="変えました。これから付く記録はこの名前になります。";if(me.role==="admin")loadMembers()}catch(e){$("#myNameMsg").textContent="保存できませんでした。"}
+});
 
 if(session)start();else showGate();
 </script>
