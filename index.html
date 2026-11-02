@@ -49,6 +49,15 @@ h1 span{color:var(--accent)}
 .tile.deleted{opacity:.5}
 .pv{aspect-ratio:9/14;background:#111;position:relative;overflow:hidden}
 .pv iframe{position:absolute;left:0;top:0;width:100%;height:calc(100% * 16 / 14);border:0;pointer-events:none}
+.pv.ig iframe{left:50%;top:0;width:340px;height:760px;transform-origin:50% 0;transform:translateX(-50%) scale(var(--s,.6)) translateY(-54px)}
+.pv .pf{position:absolute;right:8px;bottom:8px;z-index:3;font-size:10px;font-weight:700;color:#fff;padding:2px 7px;border-radius:999px;background:linear-gradient(45deg,#f09433,#dc2743,#bc1888);pointer-events:none}
+.wsplayer.ig{aspect-ratio:auto;background:#fff;overflow:auto}
+.wsplayer.ig iframe{position:static;width:100%;height:100%;min-height:640px}
+.pftabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.pftabs button{border:0;border-bottom:2.5px solid transparent;border-radius:0;background:none;padding:7px 14px 6px;font-size:13.5px;font-weight:700;color:var(--muted)}
+.pftabs button.on{color:inherit;border-bottom-color:var(--accent)}
+.pftabs button[data-pf=ig].on{border-bottom-color:#dc2743}
+.pftabs small{font-weight:400;font-size:11.5px;margin-left:4px;opacity:.8}
 .pv .hit{position:absolute;inset:0;z-index:2;background:transparent;border:0;border-radius:0;padding:0}
 .pv .cv{position:absolute;inset:0;padding:14px;color:#fff;font-size:13px;font-weight:700;line-height:1.5;display:-webkit-box;-webkit-line-clamp:7;-webkit-box-orient:vertical;overflow:hidden}
 .pv .wait{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#fff;opacity:.5;font-size:11px}
@@ -181,7 +190,8 @@ details.box[open]>summary::after{transform:rotate(180deg)}
 <body>
 <header class="top">
   <div class="row"><h1>UGC<span>バズ</span>帳</h1><span class="count" id="count"></span><span class="spacer"></span><span class="sync" id="sync"><i></i><span>接続中…</span></span><button class="me" id="me" title="表示名を変える"></button><button class="chip" id="mbBtn" hidden>メンバー<span class="nbadge" id="mbBadge" hidden></span></button><button class="chip" id="logsBtn">履歴</button><button class="chip" id="logout">ログアウト</button></div>
-  <div class="row"><textarea id="urls" placeholder="TikTokのURLを貼り付け（複数行・LINEのコピペのままでOK）"></textarea><button class="main" id="add">追加</button></div>
+  <div class="row"><textarea id="urls" placeholder="TikTok・InstagramのURLを貼り付け（複数行・LINEのコピペのままでOK）"></textarea><button class="main" id="add">追加</button></div>
+  <div class="pftabs" id="pftabs" role="tablist"><button data-pf="" role="tab">すべて<small></small></button><button data-pf="tt" role="tab">TikTok<small></small></button><button data-pf="ig" role="tab">Instagram<small></small></button></div>
   <div class="row"><input id="q" type="search" placeholder="キャプション・メモ・案件名・コメント・アカウントで検索">
     <select id="sort"><option value="added">追加が新しい順</option><option value="plays">再生数順</option><option value="save">保存率順</option><option value="share">シェア率順</option><option value="like">いいね率順</option><option value="memo">メモ未記入を先に</option></select></div>
   <button class="ftoggle" id="ftoggle" aria-expanded="false">絞り込み</button>
@@ -230,6 +240,9 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt=n=>{if(!n)return"—";n=+n;if(n>=1e4)return(n/1e4).toFixed(n>=1e6?0:1)+"万";return n.toLocaleString()};
 const pct=(a,b)=>(a==null||!b)?null:a/b*100, fp=v=>v==null?"—":v.toFixed(v<1?2:1)+"%";
+const isIG=r=>r.platform==="ig"||/[^0-9]/.test(String(r.videoId||""));
+const srcOf=(r,mode)=>isIG(r)?`https://www.instagram.com/reel/${r.videoId}/embed/`:mode==="tile"?`https://www.tiktok.com/player/v1/${r.videoId}?description=0&music_info=0&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&loop=0&closed_caption=0`:`https://www.tiktok.com/player/v1/${r.videoId}?autoplay=1&description=0&music_info=0`;
+const pageOf=r=>isIG(r)?`https://www.instagram.com/reel/${r.videoId}/`:(r.author&&r.videoId?`https://www.tiktok.com/@${r.author}/video/${r.videoId}`:r.url);
 const rt=r=>({like:pct(r.likes,r.plays),save:pct(r.saves,r.plays),share:pct(r.shares,r.plays)});
 function say(t){$("#msg").textContent=t;clearTimeout(say.t);say.t=setTimeout(()=>$("#msg").textContent="",6000)}
 function setSync(state,text){const s=$("#sync");s.className="sync "+state;s.querySelector("span").textContent=text}
@@ -304,12 +317,14 @@ const byText=m=>m?`${esc(m.name)} ${dt(m.at)}`:"";
 function metaLine(r,k){const m=r.meta&&r.meta[k];if(!m)return"";const others=(m.names||[]).filter(n=>n!==m.name);return `<span class="by">最終更新 ${byText(m)}${others.length?`（ほか ${esc(others.join("・"))}）`:""}</span>`}
 
 // ===== 絞り込み =====
-let ftag=new Set(),fgroup=null,fcat="",fby="",showDeleted=false;
+let ftag=new Set(),fgroup=null,fcat="",fby="",showDeleted=false,fpf="";
+try{fpf=localStorage.getItem("ugc-buzz-pf")||""}catch(e){}
 const adText=r=>(r.adIdeas||[]).map(a=>a.project+" "+a.memo).join(" ");
 const projects=()=>[...new Set(rows.flatMap(r=>(r.adIdeas||[]).map(a=>String(a.project||"").trim())).filter(Boolean))];
 function visible(){
   const q=$("#q").value.trim().toLowerCase();
   let v=rows.filter(r=>!!r.deleted===showDeleted);
+  if(fpf)v=v.filter(r=>isIG(r)===(fpf==="ig"));
   v=v.filter(r=>[...ftag].every(t=>r.tags.includes(t)));
   if(fgroup)v=v.filter(r=>r.cats.some(c=>CAT_GROUP[c]===fgroup||(!CAT_GROUP[c]&&fgroup==="その他")));
   if(fcat)v=v.filter(r=>r.cats.includes(fcat));
@@ -349,7 +364,13 @@ function tileBody(r){
   <div class="by">追加 ${r.createdBy?esc(r.createdBy.name):"記録前"}</div>`;
 }
 function capText(r){return (r.caption||"").replace(/#\S+/g,"").trim()||(r.author?"@"+r.author:"")}
+function renderTabs(){
+  const base=rows.filter(r=>!!r.deleted===showDeleted),ig=base.filter(isIG).length;
+  const n={"":base.length,tt:base.length-ig,ig};
+  document.querySelectorAll("#pftabs button").forEach(b=>{const k=b.dataset.pf;b.classList.toggle("on",k===fpf);b.setAttribute("aria-selected",k===fpf);b.querySelector("small").textContent=n[k]})
+}
 function renderGrid(){
+  renderTabs();
   renderFilters();
   const v=visible();
   $("#count").textContent=`${rows.filter(r=>!r.deleted).length}本`+(v.length!==rows.filter(r=>!!r.deleted===showDeleted).length?` ／ 表示 ${v.length}本`:"");
@@ -360,8 +381,8 @@ function renderGrid(){
     return;
   }
   order=ids;
-  if(!v.length){grid.innerHTML=`<div class="empty">${showDeleted?"削除した動画はありません。":rows.length?"条件に合う動画がありません。":"上の欄にTikTokのURLを貼って「追加」してください。"}</div>`;setupPreviews();return}
-  grid.innerHTML=v.map(r=>`<article class="tile${r.deleted?" deleted":""}" data-id="${esc(r.id)}"><div class="pv" data-vid="${esc(r.videoId||"")}"><div class="cv">${esc(capText(r))}</div>${r.videoId?`<div class="wait">プレビュー待ち…</div>`:""}<button class="hit" aria-label="開く"></button></div><div class="tb">${tileBody(r)}</div></article>`).join("");
+  if(!v.length){grid.innerHTML=`<div class="empty">${showDeleted?"削除した動画はありません。":rows.length?"条件に合う動画がありません。":"上の欄にTikTokかInstagramのURLを貼って「追加」してください。"}</div>`;setupPreviews();return}
+  grid.innerHTML=v.map(r=>`<article class="tile${r.deleted?" deleted":""}" data-id="${esc(r.id)}"><div class="pv${isIG(r)?" ig":""}" data-vid="${esc(r.videoId||"")}" data-id="${esc(r.id)}"><div class="cv">${esc(capText(r))}</div>${r.videoId?`<div class="wait">プレビュー待ち…</div>`:""}${isIG(r)?`<span class="pf">Instagram</span>`:""}<button class="hit" aria-label="開く"></button></div><div class="tb">${tileBody(r)}</div></article>`).join("");
   [...grid.children].forEach(t=>t._h=t.querySelector(".tb").innerHTML);
   setupPreviews();
 }
@@ -381,8 +402,8 @@ async function pump(){
     if(!p.isConnected||p.dataset.loaded||!p._vis)continue;
     loaded=loaded.filter(x=>x.isConnected);
     while(loaded.length>=MAX_LOADED){const old=loaded.find(x=>!x._vis);if(!old)break;old.querySelector("iframe")?.remove();delete old.dataset.loaded;loaded=loaded.filter(x=>x!==old)}
-    const f=document.createElement("iframe");f.src=`https://www.tiktok.com/player/v1/${p.dataset.vid}?description=0&music_info=0&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&loop=0&closed_caption=0`;f.tabIndex=-1;
-    p.insertBefore(f,p.querySelector(".hit"));p.dataset.loaded="1";loaded.push(p);
+    const f=document.createElement("iframe");const pr=byId(p.dataset.id)||{videoId:p.dataset.vid};f.src=srcOf(pr,"tile");f.tabIndex=-1;
+    if(p.classList.contains("ig"))p.style.setProperty("--s",p.clientHeight/425);p.insertBefore(f,p.querySelector(".hit"));p.dataset.loaded="1";loaded.push(p);
     await new Promise(res=>{let d=0;const fin=()=>{if(!d){d=1;res()}};f.addEventListener("load",fin);setTimeout(fin,6000)});
     await new Promise(res=>setTimeout(res,GAP));
   }
@@ -399,8 +420,9 @@ function renderWs(withPlayer){
   const v=visible();const i=v.findIndex(x=>String(x.id)===curId);
   $("#pos").textContent=i>=0?`${i+1} / ${v.length}`:"";
   $("#prev").disabled=i<=0;$("#next").disabled=i<0||i>=v.length-1;
-  $("#open").href=r.author&&r.videoId?`https://www.tiktok.com/@${r.author}/video/${r.videoId}`:r.url;
-  if(withPlayer)$("#wsplayer").innerHTML=r.videoId?`<iframe src="https://www.tiktok.com/player/v1/${r.videoId}?autoplay=1&description=0&music_info=0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen></iframe>`:`<div style="color:#fff;padding:20px">動画IDが取れていません。「TikTokで開く」から見てください。</div>`;
+  $("#open").href=pageOf(r);$("#open").textContent=isIG(r)?"Instagramで開く":"TikTokで開く";
+  $("#wsplayer").classList.toggle("ig",isIG(r));
+  if(withPlayer)$("#wsplayer").innerHTML=r.videoId?`<iframe src="${srcOf(r,"ws")}" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen></iframe>`:`<div style="color:#fff;padding:20px">動画IDが取れていません。「${isIG(r)?"Instagram":"TikTok"}で開く」から見てください。</div>`;
   const x=rt(r);
   const open=JSON.parse(sessionStorage.getItem("ws-open")||"{}");
   const ads=r.adIdeas||[];
@@ -453,16 +475,26 @@ $("#grid").addEventListener("click",e=>{const t=e.target.closest(".tile");if(t)o
 $("#ftags").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;ftag.has(b.dataset.ft)?ftag.delete(b.dataset.ft):ftag.add(b.dataset.ft);renderGrid()});
 $("#fcats").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.hasAttribute("data-clear")){ftag.clear();fgroup=null;fcat="";fby=""}else fgroup=fgroup===b.dataset.fg?null:b.dataset.fg;renderGrid()});
 $("#catSel").addEventListener("change",e=>{fcat=e.target.value;renderGrid()});
+addEventListener("resize",()=>{clearTimeout(igFit.t);igFit.t=setTimeout(igFit,150)});
+function igFit(){document.querySelectorAll(".pv.ig").forEach(p=>p.style.setProperty("--s",p.clientHeight/425))}
+$("#pftabs").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;fpf=b.dataset.pf;try{localStorage.setItem("ugc-buzz-pf",fpf)}catch(x){}window.scrollTo(0,0);renderGrid()});
 $("#bySel").addEventListener("change",e=>{fby=e.target.value;renderGrid()});
 $("#ftoggle").addEventListener("click",()=>{const f=$("#filters");f.classList.toggle("open");$("#ftoggle").setAttribute("aria-expanded",f.classList.contains("open"))});
 $("#mclose").addEventListener("click",()=>closeWs());
 $("#showDel").addEventListener("click",()=>{showDeleted=!showDeleted;renderGrid()});
 $("#q").addEventListener("input",renderGrid);$("#sort").addEventListener("change",renderGrid);
 $("#add").addEventListener("click",async()=>{
-  const found=[...new Set($("#urls").value.match(/https?:\/\/[^\s<>"']*tiktok\.com\/[^\s<>"']+/g)||[])];
-  if(!found.length){say("TikTokのURLが見つかりませんでした。");return}
+  const found=[...new Set($("#urls").value.match(/https?:\/\/[^\s<>"']*(?:tiktok\.com|instagram\.com)\/[^\s<>"']+/g)||[])];
+  if(!found.length){say("TikTok・InstagramのURLが見つかりませんでした。");return}
   $("#add").disabled=true;let n=0,dup=0,miss=0;const added=[];
   for(const u of found){
+    const ig=/instagram\.com/.test(u);
+    if(ig){const code=(u.match(/instagram\.com\/(?:[\w.]+\/)?(?:reels?|p|tv)\/([\w-]+)/)||[])[1];if(!code){miss++;continue}
+      const clean=`https://www.instagram.com/reel/${code}/`;
+      const ex=rows.find(r=>String(r.videoId)===code);
+      if(ex){if(ex.deleted){patch(ex.id,{deleted:false});n++}else dup++;continue}
+      const r=normalize({id:code,url:clean,videoId:code,platform:"ig",author:null,caption:"",tags:[],cats:[],buzzMemo:"",adIdeas:[],status:"ok",addedAt:Date.now()+n});
+      rows.push(r);added.push(r);n++;continue}
     let vid=(u.match(/\/video\/(\d+)/)||[])[1]||null,author=(u.match(/@([\w.\-]+)/)||[])[1]||null;
     if(!vid){try{const j=await(await fetch("https://www.tiktok.com/oembed?url="+encodeURIComponent(u))).json();vid=j.embed_product_id||null}catch(e){}}
     if(!vid){miss++;continue}
